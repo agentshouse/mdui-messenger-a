@@ -115,8 +115,9 @@ const report = {
   media: "Synthetic fixtures only; no actual capture or peer call",
   publication: "No Room/App created; no release branch, push or publication",
 };
+fs.mkdirSync(path.join(root, ".verification"), { recursive: true });
 fs.writeFileSync(
-  path.join(root, "reports/release-audit.json"),
+  path.join(root, ".verification/release-audit.json"),
   JSON.stringify(report, null, 2) + "\n",
 );
 execFileSync(process.execPath, [path.join(root, "scripts/check-schema.mjs")], {
