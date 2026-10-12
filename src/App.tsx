@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -52,8 +53,9 @@ import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
 import { Attachment } from "./components/Attachment";
 import { CallWorkspace } from "./components/CallWorkspace";
-import { HouseMessengerStore } from "./data/house";
+import { HouseMessengerStore, houseBridge } from "./data/house";
 import { type Store, type Message } from "./data/model";
+import { ChatNavigation } from "./navigation";
 import { VoiceCapture } from "./call/voiceCapture";
 const productionStore = new HouseMessengerStore();
 const initials = (name: string) =>
@@ -63,7 +65,11 @@ const initials = (name: string) =>
     .slice(0, 2)
     .join("")
     .toUpperCase();
-export function App({ store = productionStore }: { store?: Store }) {
+export function App({ store = productionStore, navigation: suppliedNavigation }: { store?: Store; navigation?: ChatNavigation }) {
+  const navigation = useMemo(() => suppliedNavigation ?? (store === productionStore ? new ChatNavigation(houseBridge()) : null), [suppliedNavigation, store]);
+  const [navigationError, setNavigationError] = useState<string | null>(null);
+  const [routeReady, setRouteReady] = useState(!navigation);
+
   const state = useSyncExternalStore(store.subscribe, store.snapshot),
     [room, setRoom] = useState<string | null>(null),
     [filter, setFilter] = useState(""),
@@ -118,7 +124,7 @@ export function App({ store = productionStore }: { store?: Store }) {
       });
     }
   };
-  const select = (next: string | null) => {
+  const applySelection = useCallback((next: string | null) => {
     capture.current?.cancel();
     capture.current = null;
     setRecording(false);
@@ -127,6 +133,26 @@ export function App({ store = productionStore }: { store?: Store }) {
     setRoom(next);
     setSearch("");
     setNotice("");
+  }, []);
+  useEffect(() => {
+    if (!navigation) return;
+    let previous: string | null | undefined;
+    const apply = () => {
+      const route = navigation.snapshot();
+      setNavigationError(route.error);
+      setRouteReady(route.ready);
+      if (route.ready && route.room !== previous) {
+        previous = route.room;
+        applySelection(route.room);
+      }
+    };
+    const unsubscribe = navigation.subscribe(apply);
+    apply();
+    return unsubscribe;
+  }, [navigation, applySelection]);
+  const select = (next: string | null) => {
+    if (navigation) navigation.navigate(next);
+    else applySelection(next);
   };
   const submit = async () => {
     if (
@@ -214,6 +240,7 @@ export function App({ store = productionStore }: { store?: Store }) {
   const parts = state.callParts.filter((p) => p.room === room);
   return (
     <div className={dark ? "dark messenger-app" : "messenger-app"}>
+      {navigationError && <div role="alert" className="p-3 text-sm text-destructive">{navigationError}</div>}
       <div className="messenger-shell bg-background text-foreground border shadow-sm">
         <aside
           className={`chat-list border-r ${room ? "mobile-hidden" : ""}`}
@@ -306,11 +333,12 @@ export function App({ store = productionStore }: { store?: Store }) {
             <div className="empty-chat">
               <MessageCircle size={46} />
               <h2 className="text-lg font-semibold mt-3">
-                Your conversations
+                {room ? (!routeReady || state.loading ? "Opening conversation" : "Conversation unavailable") : "Your conversations"}
               </h2>
               <p className="text-muted-foreground text-sm mt-1">
-                Choose a chat to read messages, reply or share a voice note.
+                {!routeReady || state.loading ? "Loading conversation…" : room ? "This linked conversation is not available in the connected Rooms." : "Choose a chat to read messages, reply or share a voice note."}
               </p>
+              {room && <Button onClick={() => select(null)}>Back to chats</Button>}
             </div>
           ) : (
             <Chat className="h-full min-h-0">
