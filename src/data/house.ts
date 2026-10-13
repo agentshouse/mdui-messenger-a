@@ -483,7 +483,7 @@ export class HouseMessengerStore implements Store {
     // Reject correctable input before acquiring the send lock or uploading bytes.
     const body = messageSchema.shape.text.parse(text.trim());
     for (const file of files) {
-      attachmentSchema.omit({ attachment_ref: true }).parse({
+      attachmentSchema.omit({ path: true, sha256: true }).parse({
         name: file.name,
         mime: file.type || "application/octet-stream",
         bytes: file.size,

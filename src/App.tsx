@@ -455,7 +455,7 @@ export function App({ store = productionStore, navigation: suppliedNavigation }:
                           {message.text}
                           {message.attachments.map((file) => (
                             <Attachment
-                              key={file.attachment_ref}
+                              key={file.path}
                               file={file}
                               room={message.room}
                             />
